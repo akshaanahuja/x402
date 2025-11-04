@@ -1,16 +1,16 @@
-import ipfsApi, json, requests
+import ipfsapi, json, requests
 
-api = ipfsApi.Client('127.0.0.1', 5001)
+api = ipfsapi.Client('127.0.0.1', 5001)
 
-def post_query(query: str, result: dict, tags: list[str]) -> str:
+def post_query(query: str, result: dict, tags: list[str], agent_id: str) -> str:
     data = {"query": query, "result": result, "agent_id": agent_id, "tags": tags}
-    cid = api.add_json(data)
+    cid = api.add_json(json.dumps(data))
     print(f"✅ Uploaded to IPFS: CID = {cid}")
     return cid
 
 def fetch_query(cid: str) -> dict:
     """
-    Fetch using a public HTTP gateway (works with all modern IPFS nodes).
+    Fetch using a public HTTP gateway (works with all modern IPFS nodes). 
     """
     gateway_url = f"https://ipfs.io/ipfs/{cid}"
     res = requests.get(gateway_url)
@@ -28,5 +28,5 @@ if __name__ == "__main__":
     agent_id = "agent_1"
     tags = ["solana", "validators", "count"]
 
-    cid = post_query(query, result, tags)
+    cid = post_query(query, result, tags, agent_id)
     fetched = fetch_query(cid)

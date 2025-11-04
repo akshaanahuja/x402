@@ -4,22 +4,16 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent
 from langchain_core.tools import tool
+import json
+
+# Make project root importable so we can import ipfs.ipfs
+# PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+# if PROJECT_ROOT not in sys.path:
+#     sys.path.append(PROJECT_ROOT)
+
+from ipfs.ipfs import fetch_query as ipfs_fetch
 
 
-@tool
-def tool_2_api_call(input_data: str) -> str:
-    """
-    Tool 2: This is a boilerplate tool that can call some unique API.
-    Replace this with your actual API call logic.
-    
-    Args:
-        input_data: The input data to process
-        
-    Returns:
-        A string response from the API
-    """
-    # TODO: Implement actual API call here
-    return f"Tool 2 processed: {input_data}"
 
 
 def create_agent_instance():
@@ -35,10 +29,25 @@ def create_agent_instance():
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     
     # Define tools
-    tools = [tool_2_api_call]
+    @tool
+    def ipfs_fetch_by_cid(cid: str) -> str:
+        """
+        Fetch a stored record from IPFS by CID and return it as a JSON string.
+        """
+        try:
+            data = ipfs_fetch(cid)
+            return json.dumps(data)
+        except Exception as e:
+            return f"Error fetching from IPFS: {e}"
+
+    tools = [ipfs_fetch_by_cid]
     
     # Create agent with system prompt
-    system_prompt = "You are a helpful assistant with access to Tool 2. Use it when appropriate."
+    system_prompt = (
+        "You are a helpful assistant.\n"
+        "- Use Tool 2 for its specialty when needed.\n"
+        "- When the user provides a CID or asks to retrieve a past record, call ipfs_fetch_by_cid."
+    )
     agent = create_agent(llm, tools, system_prompt=system_prompt)
     
     return agent
