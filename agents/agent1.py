@@ -14,6 +14,28 @@ if PROJECT_ROOT not in sys.path:
 from ipfs.ipfs import post_query as ipfs_post
 
 
+@tool
+def ipfs_post_query(query: str, result_json: str, tags_csv: str, agent_id: str = "agent_1") -> str:
+    """
+    Store a record in IPFS. Provide:
+    - query: the original question
+    - result_json: JSON string of the answer/result (or plain text; will be wrapped)
+    - tags_csv: comma-separated tags
+    - agent_id: identifier of the writing agent (default: agent_1)
+    Returns the CID as a string.
+    """
+    try:
+        try:
+            result = json.loads(result_json)
+        except Exception:
+            result = {"answer": result_json}
+        tags = [t.strip() for t in (tags_csv or "").split(",") if t.strip()]
+        cid = ipfs_post(query=query, result=result, tags=tags, agent_id=agent_id)
+        return cid
+    except Exception as e:
+        return f"Error posting to IPFS: {e}"
+
+
 
 
 def create_agent_instance():
@@ -29,27 +51,6 @@ def create_agent_instance():
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     
     # Define tools
-    @tool
-    def ipfs_post_query(query: str, result_json: str, tags_csv: str, agent_id: str = "agent_1") -> str:
-        """
-        Store a record in IPFS. Provide:
-        - query: the original question
-        - result_json: JSON string of the answer/result (or plain text; will be wrapped)
-        - tags_csv: comma-separated tags
-        - agent_id: identifier of the writing agent (default: agent_1)
-        Returns the CID as a string.
-        """
-        try:
-            try:
-                result = json.loads(result_json)
-            except Exception:
-                result = {"answer": result_json}
-            tags = [t.strip() for t in (tags_csv or "").split(",") if t.strip()]
-            cid = ipfs_post(query=query, result=result, tags=tags, agent_id=agent_id)
-            return cid
-        except Exception as e:
-            return f"Error posting to IPFS: {e}"
-
     tools = [ipfs_post_query]
     
     # Create agent with system prompt
@@ -77,6 +78,18 @@ if __name__ == "__main__":
         response = agent.invoke({"messages": [("human", user_query)]})
         output = response.get("messages", [])[-1].content if response.get("messages") else str(response)
         print("\nResponse:\n" + str(output))
+
+        # Prompt to persist to IPFS via tool
+        print("\nEnter tags to store this answer to IPFS (comma-separated), or press Enter to skip: ", end="", flush=True)
+        tags_csv = sys.stdin.readline().strip()
+        if tags_csv:
+            cid = ipfs_post_query.invoke({
+                "query": user_query,
+                "result_json": json.dumps({"answer": output}, ensure_ascii=False),
+                "tags_csv": tags_csv,
+                "agent_id": "agent_1",
+            })
+            print(f"\nStored to IPFS. CID: {cid}")
         
     except KeyboardInterrupt:
         print("\nCancelled.")
