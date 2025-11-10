@@ -55,6 +55,14 @@ def extract_keywords(text: str, max_tags: int = 5) -> list[str]:
         top_keywords = all_keywords[:max_tags]
     
     return top_keywords[:max_tags]
+ 
+# Import Solana wallet and client
+AGENT_MEMORY_PATH = os.path.abspath(os.path.join(PROJECT_ROOT, "agent-memory-solana"))
+if AGENT_MEMORY_PATH not in sys.path:
+    sys.path.append(AGENT_MEMORY_PATH)
+
+from wallets.agent_wallet import get_or_create_agent_wallet
+from memory_index_python_client import store_memory
 
 
 @tool
@@ -79,6 +87,33 @@ def ipfs_post_query(query: str, result_json: str, tags_csv: str, agent_id: str =
         return f"Error posting to IPFS: {e}"
 
 
+@tool
+def solana_store_memory(cid: str, tags_csv: str, agent_id: str = "agent_1") -> str:
+    """
+    Store a memory on Solana blockchain. This creates an on-chain index entry linking the IPFS CID to tags.
+    Provide:
+    - cid: IPFS Content ID (the CID from ipfs_post_query)
+    - tags_csv: comma-separated tags (same tags used for IPFS)
+    - agent_id: identifier of the writing agent (default: agent_1)
+    Returns the Solana transaction signature as a string.
+    """
+    try:
+        # Parse tags
+        tags = [t.strip() for t in (tags_csv or "").split(",") if t.strip()]
+        if not tags:
+            return "Error: At least one tag is required"
+        
+        # Get or create agent wallet
+        keypair = get_or_create_agent_wallet(agent_id=agent_id, fund_sol=1)
+        
+        # Store memory on Solana
+        tx_signature = store_memory(keypair, cid, tags)
+        
+        return f"Memory stored on Solana. Transaction: {tx_signature}"
+    except Exception as e:
+        return f"Error storing memory on Solana: {e}"
+
+
 
 
 def create_agent_instance():
@@ -94,13 +129,16 @@ def create_agent_instance():
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     
     # Define tools
-    tools = [ipfs_post_query]
+    tools = [ipfs_post_query, solana_store_memory]
     
     # Create agent with system prompt
     system_prompt = (
         "You are a helpful assistant.\n"
-        "- Use Tool 1 for its specialty when needed.\n"
-        "- When the user asks to persist/store an answer, call ipfs_post_query with the query, the answer as JSON, and tags."
+        "- Use ipfs_post_query to store data on IPFS. It returns a CID.\n"
+        "- Use solana_store_memory to store the CID and tags on Solana blockchain for discoverability.\n"
+        "- When the user asks to persist/store an answer:\n"
+        "  1. First call ipfs_post_query with the query, the answer as JSON, and tags to get a CID.\n"
+        "  2. Then call solana_store_memory with the CID and the same tags to index it on-chain."
     )
     agent = create_agent(llm, tools, system_prompt=system_prompt)
     
@@ -137,6 +175,30 @@ if __name__ == "__main__":
             "agent_id": "agent_1",
         })
         print(f"\n✅ Stored to IPFS. CID: {cid}")
+        # Prompt to persist to IPFS and Solana via tools
+        print("\nEnter tags to store this answer (comma-separated), or press Enter to skip: ", end="", flush=True)
+        tags_csv = sys.stdin.readline().strip()
+        if tags_csv:
+            # Store on IPFS
+            cid = ipfs_post_query.invoke({
+                "query": user_query,
+                "result_json": json.dumps({"answer": output}, ensure_ascii=False),
+                "tags_csv": tags_csv,
+                "agent_id": "agent_1",
+            })
+            print(f"\nStored to IPFS. CID: {cid}")
+            
+            # Store on Solana
+            try:
+                solana_result = solana_store_memory.invoke({
+                    "cid": cid,
+                    "tags_csv": tags_csv,
+                    "agent_id": "agent_1",
+                })
+                print(f"\n{solana_result}")
+            except Exception as e:
+                print(f"\n⚠️ Warning: Failed to store on Solana: {e}")
+                print("   The data is still stored on IPFS with CID:", cid)
         
     except KeyboardInterrupt:
         print("\nCancelled.")

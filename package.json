@@ -1,4 +1,29 @@
 {
   "private": true,
-  "packageManager": "pnpm@10.7.0"
+  "packageManager": "pnpm@10.7.0",
+  "dependencies": {
+    "@solana/web3.js": "^1.98.4"
+  },
+  "name": "x402",
+  "version": "1.0.0",
+  "description": "> \"1 line of code to accept digital dollars. No fee, 2 second settlement, $0.001 minimum payment.\"",
+  "main": "index.js",
+  "directories": {
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/akshaanahuja/x402.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/akshaanahuja/x402/issues"
+  },
+  "homepage": "https://github.com/akshaanahuja/x402#readme"
 }

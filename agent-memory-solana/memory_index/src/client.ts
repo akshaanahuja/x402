@@ -33,12 +33,15 @@ export class MemoryIndexClient {
   }
 
   /**
-   * Get memory by query hash.
+   * Get memory by authority and CID.
    * Derives the PDA and fetches the account.
    */
-  async getMemoryByQueryHash(queryHash: number[]): Promise<MemoryIndexAccountData | null> {
+  async getMemoryByAuthorityAndCid(
+    authority: PublicKey,
+    cid: string
+  ): Promise<MemoryIndexAccountData | null> {
     const [memoryPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("memory"), Buffer.from(queryHash)],
+      [Buffer.from("memory"), authority.toBuffer(), Buffer.from(cid)],
       this.program.programId
     );
 
@@ -114,7 +117,6 @@ export class MemoryIndexClient {
  * Type definition for MemoryIndex account data.
  */
 export type MemoryIndexAccountData = {
-  queryHash: number[];
   cid: string;
   tags: string[];
   timestamp: BN;

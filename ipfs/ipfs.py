@@ -1,6 +1,6 @@
-import ipfsapi, json, requests
+import ipfsApi, json, requests
 
-api = ipfsapi.Client('127.0.0.1', 5001)
+api = ipfsApi.Client('127.0.0.1', 5001)
 
 def post_query(query: str, result: dict, tags: list[str], agent_id: str) -> str:
     data = {"query": query, "result": result, "agent_id": agent_id, "tags": tags}

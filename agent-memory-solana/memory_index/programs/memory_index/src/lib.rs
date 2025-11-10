@@ -8,7 +8,6 @@ pub mod memory_index {
 
     pub fn store_memory(
         ctx: Context<StoreMemory>,
-        query_hash: [u8; 32],
         cid: String,
         tags: Vec<String>,
     ) -> Result<()> {
@@ -23,7 +22,6 @@ pub mod memory_index {
             require!(tag.len() <= 50, ErrorCode::TagTooLong);
         }
         
-        memory.query_hash = query_hash;
         memory.cid = cid;
         memory.tags = tags;
         memory.timestamp = Clock::get()?.unix_timestamp;
@@ -41,7 +39,6 @@ pub mod memory_index {
 
 #[account]
 pub struct MemoryIndex {
-    pub query_hash: [u8; 32],
     pub cid: String,
     pub tags: Vec<String>,
     pub timestamp: i64,
@@ -51,7 +48,6 @@ pub struct MemoryIndex {
 impl MemoryIndex {
     // Calculate space: 8 discriminator + fields
     pub const SPACE: usize = 8 + // discriminator
-        32 + // query_hash
         4 + 100 + // cid (String with max len)
         4 + (4 + 50) * 20 + // tags (Vec with max 20 items, each String max 50)
         8 + // timestamp
@@ -59,13 +55,13 @@ impl MemoryIndex {
 }
 
 #[derive(Accounts)]
-#[instruction(query_hash: [u8; 32])]
+#[instruction(cid: String)]
 pub struct StoreMemory<'info> {
     #[account(
         init,
         payer = authority,
         space = MemoryIndex::SPACE,
-        seeds = [b"memory", query_hash.as_ref()],
+        seeds = [b"memory", authority.key().as_ref(), cid.as_bytes()],
         bump
     )]
     pub memory: Account<'info, MemoryIndex>,

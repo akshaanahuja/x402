@@ -3,7 +3,6 @@ import { Program } from "@coral-xyz/anchor";
 import { MemoryIndex } from "../target/types/memory_index";
 import { expect } from "chai";
 import { PublicKey } from "@solana/web3.js";
-import crypto from "crypto";
 import { MemoryIndexClient, createMemoryIndexClient } from "../src/client";
 
 describe("memory_index", () => {
@@ -13,25 +12,23 @@ describe("memory_index", () => {
 
   const program = anchor.workspace.memoryIndex as Program<MemoryIndex>;
 
-  let testQueryHash: number[];
   let testCid: string;
   let testTags: string[];
 
   beforeEach(() => {
-    // Generate a random query hash (32 bytes)
-    testQueryHash = Array.from(crypto.randomBytes(32));
     testCid = "QmYjtig7VJQ6XsnUjqqJvj7QaMcCAwtrgNdahSiFofrE7o";
     testTags = ["python", "testing", "agent"];
   });
 
   it("Stores a memory successfully", async () => {
+    const authority = provider.wallet.publicKey;
     const [memoryPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("memory"), Buffer.from(testQueryHash)],
+      [Buffer.from("memory"), authority.toBuffer(), Buffer.from(testCid)],
       program.programId
     );
 
     const tx = await program.methods
-      .storeMemory(testQueryHash, testCid, testTags)
+      .storeMemory(testCid, testTags)
       .rpc();
 
     console.log("Store memory transaction signature", tx);
@@ -41,8 +38,7 @@ describe("memory_index", () => {
 
     expect(memoryAccount.cid).to.equal(testCid);
     expect(memoryAccount.tags).to.deep.equal(testTags);
-    expect(memoryAccount.queryHash).to.deep.equal(testQueryHash);
-    expect(memoryAccount.authority.toBase58()).to.equal(provider.wallet.publicKey.toBase58());
+    expect(memoryAccount.authority.toBase58()).to.equal(authority.toBase58());
   });
 
   it("Fails to store memory with CID too long", async () => {
@@ -50,7 +46,7 @@ describe("memory_index", () => {
 
     try {
       await program.methods
-        .storeMemory(testQueryHash, longCid, testTags)
+        .storeMemory(longCid, testTags)
         .rpc();
 
       expect.fail("Should have thrown an error");
@@ -64,7 +60,7 @@ describe("memory_index", () => {
 
     try {
       await program.methods
-        .storeMemory(testQueryHash, testCid, manyTags)
+        .storeMemory(testCid, manyTags)
         .rpc();
 
       expect.fail("Should have thrown an error");
@@ -79,7 +75,7 @@ describe("memory_index", () => {
 
     try {
       await program.methods
-        .storeMemory(testQueryHash, testCid, tagsWithLongTag)
+        .storeMemory(testCid, tagsWithLongTag)
         .rpc();
 
       expect.fail("Should have thrown an error");
@@ -90,20 +86,16 @@ describe("memory_index", () => {
 
   it("Gets memories by tag using client", async () => {
     // First, store some memories with different tags
-    const memory1Hash = Array.from(crypto.randomBytes(32));
-    const memory2Hash = Array.from(crypto.randomBytes(32));
-    const memory3Hash = Array.from(crypto.randomBytes(32));
-
     await program.methods
-      .storeMemory(memory1Hash, "QmCID1QueryByTag", ["python", "agent"])
+      .storeMemory("QmCID1QueryByTag", ["python", "agent"])
       .rpc();
 
     await program.methods
-      .storeMemory(memory2Hash, "QmCID2QueryByTag", ["rust", "agent"])
+      .storeMemory("QmCID2QueryByTag", ["rust", "agent"])
       .rpc();
 
     await program.methods
-      .storeMemory(memory3Hash, "QmCID3QueryByTag", ["typescript", "web"])
+      .storeMemory("QmCID3QueryByTag", ["typescript", "web"])
       .rpc();
 
     // Use the client to query by tag
@@ -125,19 +117,17 @@ describe("memory_index", () => {
   });
 
   it("Stores multiple memories with different tags", async () => {
+    const authority = provider.wallet.publicKey;
     const memories = [
       {
-        queryHash: Array.from(crypto.randomBytes(32)),
         cid: "QmYjtig7VJQ6XsnUjqqJvj7QaMcCAwtrgNdahSiFofrE7o",
         tags: ["python", "agent"]
       },
       {
-        queryHash: Array.from(crypto.randomBytes(32)),
         cid: "QmHash2AnotherCIDHereForTestingPurposes",
         tags: ["rust", "blockchain"]
       },
       {
-        queryHash: Array.from(crypto.randomBytes(32)),
         cid: "QmYetAnotherTestCIDForMemoryStorage",
         tags: ["typescript", "web", "agent"]
       },
@@ -145,18 +135,19 @@ describe("memory_index", () => {
 
     for (const memory of memories) {
       const [memoryPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("memory"), Buffer.from(memory.queryHash)],
+        [Buffer.from("memory"), authority.toBuffer(), Buffer.from(memory.cid)],
         program.programId
       );
 
       await program.methods
-        .storeMemory(memory.queryHash, memory.cid, memory.tags)
+        .storeMemory(memory.cid, memory.tags)
         .rpc();
 
       // Verify each memory was stored correctly
       const account = await program.account.memoryIndex.fetch(memoryPda);
       expect(account.cid).to.equal(memory.cid);
       expect(account.tags).to.deep.equal(memory.tags);
+      expect(account.authority.toBase58()).to.equal(authority.toBase58());
     }
 
     console.log("Successfully stored", memories.length, "memories");
